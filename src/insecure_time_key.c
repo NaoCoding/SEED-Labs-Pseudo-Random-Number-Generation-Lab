@@ -10,7 +10,9 @@ int main(void)
     time_t seed = time(NULL);
 
     printf("Seed (Unix seconds): %lld\n", (long long)seed);
+#ifndef NO_SRAND
     srand((unsigned int)seed);
+#endif
 
     for (size_t i = 0; i < sizeof key; ++i) {
         key[i] = (unsigned char)(rand() % 256);
