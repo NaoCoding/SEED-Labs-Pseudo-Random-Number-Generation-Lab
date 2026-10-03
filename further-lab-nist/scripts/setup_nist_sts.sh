@@ -5,6 +5,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 LAB_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 TOOLS_DIR="$LAB_DIR/tools"
 ARCHIVE="$TOOLS_DIR/sts-2_1_2.zip"
+DOWNLOAD_TMP="$ARCHIVE.part"
 EXTRACT_DIR="$TOOLS_DIR/sts"
 OFFICIAL_DOWNLOAD="https://csrc.nist.gov/CSRC/media/Projects/Random-Bit-Generation/documents/sts-2_1_2.zip"
 OFFICIAL_PAGE="https://csrc.nist.gov/projects/random-bit-generation/documentation-and-software"
@@ -26,21 +27,45 @@ fi
 if ((${#missing[@]} > 0)); then
     printf 'ERROR: missing required command(s): %s\n' "${missing[*]}" >&2
     echo "On Ubuntu, install the usual dependencies with:" >&2
-    echo "  sudo apt update && sudo apt install build-essential unzip wget -y" >&2
+    echo "  sudo apt update && sudo apt install build-essential unzip wget ca-certificates -y" >&2
     echo "Alternatively, install curl instead of wget for downloading." >&2
     exit 1
 fi
 
 mkdir -p "$TOOLS_DIR"
 
+if [[ -f "$ARCHIVE" ]] && ! unzip -tq "$ARCHIVE" >/dev/null; then
+    echo "Removing an incomplete or invalid archive left by an earlier download attempt: $ARCHIVE" >&2
+    rm -f "$ARCHIVE"
+fi
+
 if [[ ! -f "$ARCHIVE" ]]; then
     echo "Downloading NIST STS 2.1.2 from the official NIST site..."
     echo "Source page: $OFFICIAL_PAGE"
     if [[ "$DOWNLOADER" == "wget" ]]; then
-        wget --https-only -O "$ARCHIVE" "$OFFICIAL_DOWNLOAD"
+        if ! wget --https-only -O "$DOWNLOAD_TMP" "$OFFICIAL_DOWNLOAD"; then
+            rm -f "$DOWNLOAD_TMP"
+            echo "ERROR: download failed. TLS certificate verification was not disabled." >&2
+            echo "If the error mentions a certificate issuer, refresh Ubuntu's trusted CA certificates:" >&2
+            echo "  sudo apt update && sudo apt install --reinstall ca-certificates -y" >&2
+            echo "  sudo update-ca-certificates" >&2
+            echo "Also check the VM clock with: timedatectl status" >&2
+            echo "Then rerun this script. Do not use wget --no-check-certificate or curl -k." >&2
+            exit 1
+        fi
     else
-        curl --fail --location --proto '=https' --output "$ARCHIVE" "$OFFICIAL_DOWNLOAD"
+        if ! curl --fail --location --proto '=https' --output "$DOWNLOAD_TMP" "$OFFICIAL_DOWNLOAD"; then
+            rm -f "$DOWNLOAD_TMP"
+            echo "ERROR: download failed. TLS certificate verification was not disabled." >&2
+            echo "If the error mentions a certificate issuer, refresh Ubuntu's trusted CA certificates:" >&2
+            echo "  sudo apt update && sudo apt install --reinstall ca-certificates -y" >&2
+            echo "  sudo update-ca-certificates" >&2
+            echo "Also check the VM clock with: timedatectl status" >&2
+            echo "Then rerun this script. Do not use wget --no-check-certificate or curl -k." >&2
+            exit 1
+        fi
     fi
+    mv "$DOWNLOAD_TMP" "$ARCHIVE"
 else
     echo "Using existing archive: $ARCHIVE"
 fi

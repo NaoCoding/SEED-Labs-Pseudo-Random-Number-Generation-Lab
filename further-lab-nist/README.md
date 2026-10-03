@@ -26,7 +26,7 @@ On each Ubuntu VM, install the build and archive tools:
 
 ```sh
 sudo apt update
-sudo apt install build-essential unzip wget -y
+sudo apt install build-essential unzip wget ca-certificates -y
 ```
 
 The setup script can use either `wget` or `curl`. Install `curl` if you prefer it and do not have `wget`:
@@ -34,6 +34,19 @@ The setup script can use either `wget` or `curl`. Install `curl` if you prefer i
 ```sh
 sudo apt install curl -y
 ```
+
+### If download reports an untrusted certificate issuer
+
+Do not use an insecure-download option such as `wget --no-check-certificate` or `curl -k`; those disable HTTPS certificate verification. Refresh Ubuntu's trusted certificate bundle and check that the VM clock is correct:
+
+```sh
+sudo apt update
+sudo apt install --reinstall ca-certificates -y
+sudo update-ca-certificates
+timedatectl status
+```
+
+Then rerun `./scripts/setup_nist_sts.sh`. If the VM is behind a school or company proxy that replaces HTTPS certificates, use the organization's documented trusted CA installation procedure or ask its administrator; do not trust an unknown certificate provided by the connection.
 
 ## Step 2 - Setup NIST STS
 
