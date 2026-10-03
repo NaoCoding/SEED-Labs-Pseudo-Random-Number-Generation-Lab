@@ -5,11 +5,15 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 LAB_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 cd "$LAB_DIR"
 
-SAMPLE_BYTES=125000
+STREAM_COUNT=55
+BITS_PER_STREAM=1000000
+SAMPLE_BITS=$((STREAM_COUNT * BITS_PER_STREAM))
+SAMPLE_BYTES=$((SAMPLE_BITS / 8))
 GENERATOR="$LAB_DIR/generate_c_random_nist"
 
 usage() {
     echo "Usage: $0 {c_random|dev_random|dev_urandom|all}" >&2
+    echo "Each generated file contains $STREAM_COUNT consecutive $BITS_PER_STREAM-bit streams ($SAMPLE_BITS bits total)." >&2
 }
 
 verify_size() {
@@ -40,7 +44,7 @@ generate_dev_urandom() {
 }
 
 generate_dev_random() {
-    echo "WARNING: reading 125000 bytes from /dev/random may block for a long time, especially on Ubuntu 20.04."
+    echo "WARNING: reading $SAMPLE_BYTES bytes from /dev/random may block for a long time, especially on Ubuntu 20.04."
     echo "This command reads /dev/random directly. It does not replace or work around the device. Press Ctrl-C to stop."
     echo "Timing the /dev/random read..."
     time head -c "$SAMPLE_BYTES" /dev/random > data/dev_random.bin

@@ -6,8 +6,8 @@ LAB_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 
 usage() {
     echo "Usage: $0 {ubuntu20|ubuntu26} [--samples-ready] [--non-interactive] [--resume]" >&2
-    echo "  Default: generate all three samples before running NIST STS." >&2
-    echo "  --samples-ready: use existing samples after verifying their sizes." >&2
+    echo "  Default: generate three files, each containing 55 streams of 1,000,000 bits." >&2
+    echo "  --samples-ready: use existing 55-stream samples after verifying their sizes." >&2
     echo "  --non-interactive: feed the expected NIST STS 2.1.2 menu choices automatically." >&2
     echo "  --resume: skip sources whose AlgorithmTesting output is already saved." >&2
 }
@@ -44,9 +44,13 @@ for option in "$@"; do
     esac
 done
 
-SAMPLE_BYTES=125000
+STREAM_COUNT=55
+BITS_PER_STREAM=1000000
+SAMPLE_BITS=$((STREAM_COUNT * BITS_PER_STREAM))
+SAMPLE_BYTES=$((SAMPLE_BITS / 8))
 SOURCES=(c_random dev_random dev_urandom)
-RESULTS_DIR="$LAB_DIR/results/$VM_TAG"
+# Keep the original one-stream results and save this run in a separate directory.
+RESULTS_DIR="$LAB_DIR/results/$VM_TAG/55-streams"
 
 ASSESS="$(find "$LAB_DIR/tools/sts" -type f -name assess -executable -print -quit 2>/dev/null || true)"
 if [[ -z "$ASSESS" ]]; then
@@ -57,7 +61,8 @@ fi
 STS_DIR="$(dirname -- "$ASSESS")"
 
 if ((SAMPLES_READY == 0)); then
-    echo "Generating the three 1,000,000-bit samples. The /dev/random read may block; Ctrl-C stops it."
+    echo "Generating three files with $STREAM_COUNT streams each ($BITS_PER_STREAM bits per stream)."
+    echo "The /dev/random read may block; Ctrl-C stops it."
     "$SCRIPT_DIR/generate_samples.sh" c_random
     "$SCRIPT_DIR/generate_samples.sh" dev_urandom
     "$SCRIPT_DIR/generate_samples.sh" dev_random
@@ -84,6 +89,9 @@ mkdir -p "$RESULTS_DIR"
 {
     echo "VM label: $VM_TAG"
     echo "Collected: $(date --iso-8601=seconds)"
+    echo "NIST STS bitstreams per source: $STREAM_COUNT"
+    echo "Bits per bitstream: $BITS_PER_STREAM"
+    echo "Bytes per source file: $SAMPLE_BYTES"
     echo
     uname -a
     echo
@@ -94,10 +102,10 @@ echo
 echo "NIST STS executable: $ASSESS"
 echo "STS working directory: $STS_DIR"
 if ((NON_INTERACTIVE == 1)); then
-    echo "Non-interactive mode: feeding the NIST STS 2.1.2 menu sequence for input file, all tests, default parameters, one bitstream, and binary input."
+    echo "Non-interactive mode: feeding the NIST STS 2.1.2 menu sequence for input file, all tests, default parameters, $STREAM_COUNT bitstreams, and binary input."
     echo "Use this only with the official NIST STS 2.1.2 menu flow installed by setup_nist_sts.sh."
 else
-    echo "For each run, choose user-provided file input, raw binary, all available tests, default parameters, and one bitstream."
+    echo "For each run, choose user-provided file input, raw binary, all available tests, default parameters, and $STREAM_COUNT bitstreams."
     echo "The script will display the required input path before each interactive run. Confirm the choices shown by your installed STS version."
 fi
 
@@ -126,7 +134,7 @@ for source in "${SOURCES[@]}"; do
     run_status=0
     if ((NON_INTERACTIVE == 1)); then
         set +e
-        printf '0\n%s\n1\n0\n1\n1\n' "$sample" | (cd "$STS_DIR" && "$ASSESS" 1000000) 2>&1 | tee "$run_log"
+        printf '0\n%s\n1\n0\n%s\n1\n' "$sample" "$STREAM_COUNT" | (cd "$STS_DIR" && "$ASSESS" "$BITS_PER_STREAM") 2>&1 | tee "$run_log"
         pipeline_status=("${PIPESTATUS[@]}")
         set -e
         run_status="${pipeline_status[1]}"
@@ -134,7 +142,7 @@ for source in "${SOURCES[@]}"; do
     else
         read -r -p "Press Enter when ready to start this interactive STS run (Ctrl-C to stop): " _
         set +e
-        (cd "$STS_DIR" && "$ASSESS" 1000000) 2>&1 | tee "$run_log"
+        (cd "$STS_DIR" && "$ASSESS" "$BITS_PER_STREAM") 2>&1 | tee "$run_log"
         pipeline_status=("${PIPESTATUS[@]}")
         set -e
         run_status="${pipeline_status[0]}"

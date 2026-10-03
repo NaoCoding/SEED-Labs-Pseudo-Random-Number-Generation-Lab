@@ -4,7 +4,9 @@
 #include <stdlib.h>
 
 enum {
-    SAMPLE_BITS = 1000000,
+    STREAM_COUNT = 55,
+    BITS_PER_STREAM = 1000000,
+    SAMPLE_BITS = STREAM_COUNT * BITS_PER_STREAM,
     SAMPLE_BYTES = SAMPLE_BITS / 8,
     RANDOM_BITS = 31
 };
@@ -17,6 +19,7 @@ int main(void)
         return EXIT_FAILURE;
     }
 
+    /* Seed once, then split the continuous output into 55 successive streams. */
     srandom(12345);
 
     unsigned char byte = 0;
@@ -63,7 +66,7 @@ done:
         return EXIT_FAILURE;
     }
 
-    printf("Generated %d bits (%d bytes) in data/c_random.bin\n",
-           SAMPLE_BITS, SAMPLE_BYTES);
+    printf("Generated %d streams of %d bits (%d bits, %d bytes) in data/c_random.bin\n",
+           STREAM_COUNT, BITS_PER_STREAM, SAMPLE_BITS, SAMPLE_BYTES);
     return EXIT_SUCCESS;
 }

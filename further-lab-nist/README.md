@@ -11,14 +11,15 @@ The sources are standard C `random()`, `/dev/random`, and `/dev/urandom`.
 
 ## Test data size
 
-Each input must contain exactly:
+Each source file contains 55 consecutive bitstreams. Each bitstream is 1,000,000 bits, so each input file must contain exactly:
 
 ```text
-1,000,000 bits
-= 125,000 bytes
+55 × 1,000,000 bits
+= 55,000,000 bits
+= 6,875,000 bytes
 ```
 
-Use the same size for all three sources and on both VMs so each STS run compares an equal-length input under the same procedure. The files are raw binary streams, not text containing `0` and `1` characters.
+Use the same size for all three sources and on both VMs so each STS run compares an equal-length input under the same procedure. The files are raw binary streams, not text containing `0` and `1` characters. STS is configured with a stream length of 1,000,000 bits and a stream count of 55.
 
 ## Step 1 - Install dependencies
 
@@ -97,7 +98,7 @@ gcc -O2 -Wall -Wextra -o generate_c_random_nist src/generate_c_random_nist.c
 wc -c data/c_random.bin
 ```
 
-The generator uses the fixed seed `srandom(12345)`. A `random()` result provides 31 usable bits. The program packs those bits continuously, most-significant bit first, into bytes and stops after exactly 1,000,000 bits. It does not write a 32-bit integer for each result, which would add a predictable zero high bit. This describes the encoding only; it does not predict a test outcome.
+The generator uses the fixed seed `srandom(12345)` once, then continues the same `random()` stream across 55 consecutive 1,000,000-bit segments. A `random()` result provides 31 usable bits. The program packs those bits continuously, most-significant bit first, into bytes and writes 55,000,000 bits total (6,875,000 bytes). It does not reseed between segments or write a 32-bit integer for each result, which would add a predictable zero high bit. The fixed seed makes the generated file repeatable; the 55 segments are successive portions of that generated stream, not 55 repeated copies of one segment.
 
 ## Step 4 - Generate `/dev/urandom` sample
 
@@ -107,13 +108,13 @@ Run:
 ./scripts/generate_samples.sh dev_urandom
 ```
 
-Equivalent raw command:
+Equivalent raw command for 55 streams:
 
 ```sh
-head -c 125000 /dev/urandom > data/dev_urandom.bin
+head -c 6875000 /dev/urandom > data/dev_urandom.bin
 ```
 
-The helper checks that the resulting file contains exactly 125,000 bytes.
+The helper checks that the resulting file contains exactly 6,875,000 bytes, or 55 consecutive 1,000,000-bit streams.
 
 ## Step 5 - Generate `/dev/random` sample
 
@@ -123,10 +124,10 @@ Run:
 ./scripts/generate_samples.sh dev_random
 ```
 
-Equivalent raw command, with elapsed time displayed:
+Equivalent raw command for 55 streams, with elapsed time displayed:
 
 ```sh
-time head -c 125000 /dev/random > data/dev_random.bin
+time head -c 6875000 /dev/random > data/dev_random.bin
 ```
 
 The helper prints a warning before reading. On Ubuntu 20.04, the read may block or take a very long time. Do not bypass this behavior, substitute `/dev/urandom`, or start an entropy-generating daemon. Ctrl-C stops the read; if interrupted, regenerate the sample and verify its size before testing.
@@ -159,7 +160,7 @@ After generating each sample, check all current sample files:
 wc -c data/*.bin
 ```
 
-Each of `c_random.bin`, `dev_random.bin`, and `dev_urandom.bin` must be exactly `125000` bytes. Do not run STS on an absent or incomplete file. If an interrupted read left a partial file, repeat that source's generation and recheck it.
+Each of `c_random.bin`, `dev_random.bin`, and `dev_urandom.bin` must be exactly `6875000` bytes. Each file is treated as 55 consecutive streams of 1,000,000 bits. Do not run STS on an absent or incomplete file. If an interrupted read left a partial file, repeat that source's generation and recheck it.
 
 ## Step 7 - Run NIST STS
 
@@ -177,16 +178,16 @@ Adjust that directory to the path printed by the setup script. When prompted, co
 - **Input file:** the absolute path to exactly one of `data/c_random.bin`, `data/dev_random.bin`, or `data/dev_urandom.bin`.
 - **Tests:** all available statistical tests.
 - **Test parameters:** defaults.
-- **Number of bitstreams:** one.
+- **Number of bitstreams:** 55.
 - **Bitstream length:** 1,000,000 bits (already supplied to `assess`).
 
 STS 2.1.2 is an older interactive program. Its exact prompt wording and menu numbers may vary with build or version. Read the prompt text displayed by your installed copy, choose the options whose descriptions match the settings above, and confirm that it identifies file input and binary data before starting. Do not rely on a fixed sequence of keystrokes. If you are unsure which option corresponds to a setting, stop and inspect the installed version's prompts or documentation before proceeding.
 
-Run one invocation per file. For example, provide the full path to `data/c_random.bin`, finish the run, preserve its output as described in Step 8, and repeat with `data/dev_random.bin` and `data/dev_urandom.bin`. Keep the same menu selections and defaults for all three files and on both Ubuntu versions.
+Run one invocation per file. For example, provide the full path to `data/c_random.bin`, enter 55 for the number of bitstreams, finish the run, preserve its output as described in Step 8, and repeat with `data/dev_random.bin` and `data/dev_urandom.bin`. Keep the same menu selections and defaults for all three files and on both Ubuntu versions.
 
 ### One-command experiment driver
 
-The `scripts/run_nist_experiment.sh` helper can generate (or verify existing) samples, launch STS once per source, save each `AlgorithmTesting/` output immediately, and save VM information. From `further-lab-nist/`, run the matching VM label:
+The `scripts/run_nist_experiment.sh` helper generates (or verifies existing) 55-stream samples, launches STS once per source, saves each `AlgorithmTesting/` output immediately, and saves VM information. From `further-lab-nist/`, run the matching VM label:
 
 ```sh
 ./scripts/run_nist_experiment.sh ubuntu20
@@ -198,13 +199,13 @@ or on Ubuntu 26.04:
 ./scripts/run_nist_experiment.sh ubuntu26
 ```
 
-By default it generates the samples first, including the direct `/dev/random` read and its warning. If all three samples are already generated and verified, pass `--samples-ready` to skip regeneration:
+By default it generates the samples first, including the direct `/dev/random` read and its warning. Each source file is 6,875,000 bytes. If all three 55-stream samples are already generated and verified, pass `--samples-ready` to skip regeneration:
 
 ```sh
 ./scripts/run_nist_experiment.sh ubuntu20 --samples-ready
 ```
 
-The driver pauses before each test, prints the exact sample path to enter in STS, and waits for you to make the interactive menu selections described above. It does not automate the NIST menus. After each invocation returns, it copies that run's output to `results/<vm-label>/<source>/AlgorithmTesting/`. It stops rather than overwriting an existing saved run. If `/dev/random` is interrupted during initial generation, generate/verify all three samples manually, then rerun with `--samples-ready`.
+The driver pauses before each test, prints the exact sample path to enter in STS, and waits for you to make the interactive menu selections described above. It does not automate the NIST menus. After each invocation returns, it copies that run's output to `results/<vm-label>/55-streams/<source>/AlgorithmTesting/`, keeping the earlier one-stream results separate. It stops rather than overwriting an existing saved run. If `/dev/random` is interrupted during initial generation, generate/verify all three samples manually, then rerun with `--samples-ready`.
 
 If you need no keyboard input during the STS runs, the driver also has a version-specific mode:
 
@@ -212,13 +213,15 @@ If you need no keyboard input during the STS runs, the driver also has a version
 ./scripts/run_nist_experiment.sh ubuntu20 --non-interactive
 ```
 
-Combine it with `--samples-ready` to skip sample generation. This mode feeds the expected NIST STS 2.1.2 responses for input-file selection, all tests, continuing with displayed default parameters, one bitstream, and binary format. Use it only with the official 2.1.2 build installed by the setup script; a different STS build or changed prompt sequence can consume those responses differently. The default interactive mode remains available. `/dev/random` generation may still wait for data, as required by the experiment, and is not bypassed.
+Combine it with `--samples-ready` to skip sample generation. This mode feeds the expected NIST STS 2.1.2 responses for input-file selection, all tests, continuing with displayed default parameters, 55 bitstreams, and binary format. Use it only with the official 2.1.2 build installed by the setup script; a different STS build or changed prompt sequence can consume those responses differently. The default interactive mode remains available. `/dev/random` generation may still wait for data, as required by the experiment, and is not bypassed.
 
 If a previous driver run saved one or more sources before stopping, add `--resume` to skip sources whose `AlgorithmTesting/` output is already present and continue with the remaining ones:
 
 ```sh
 ./scripts/run_nist_experiment.sh ubuntu20 --samples-ready --non-interactive --resume
 ```
+
+For a fresh 55-stream experiment, do not use `--samples-ready` unless the three files have already been regenerated and each is exactly 6,875,000 bytes. The driver stores outputs under `results/<vm-label>/55-streams/` and will not overwrite an earlier 55-stream run. Run the setup once on each VM after updating this repository, then start a fresh experiment with `./scripts/run_nist_experiment.sh ubuntu20 --non-interactive` or `./scripts/run_nist_experiment.sh ubuntu26 --non-interactive`.
 
 Each invocation's console output is saved in the corresponding source folder as `assess.log`. STS 2.1.2 may return a nonzero process status after printing its normal completion message; the driver checks that message and saves the output before continuing. If it stops without a completion message, inspect the log and output before deciding whether to rerun that source.
 
@@ -230,27 +233,27 @@ For Ubuntu 20.04, after the C `random()` run:
 
 ```sh
 STS_DIR="$PWD/tools/sts/sts-2.1.2"  # adjust to the actual STS directory
-mkdir -p results/ubuntu20/c_random
-cp -a "$STS_DIR/experiments/AlgorithmTesting" results/ubuntu20/c_random/
+mkdir -p results/ubuntu20/55-streams/c_random
+cp -a "$STS_DIR/experiments/AlgorithmTesting" results/ubuntu20/55-streams/c_random/
 ```
 
 After the other two runs, save to their separate destinations:
 
 ```sh
-mkdir -p results/ubuntu20/dev_random results/ubuntu20/dev_urandom
-cp -a "$STS_DIR/experiments/AlgorithmTesting" results/ubuntu20/dev_random/
+mkdir -p results/ubuntu20/55-streams/dev_random results/ubuntu20/55-streams/dev_urandom
+cp -a "$STS_DIR/experiments/AlgorithmTesting" results/ubuntu20/55-streams/dev_random/
 # Run STS for dev_urandom, then immediately copy its newly written output:
-cp -a "$STS_DIR/experiments/AlgorithmTesting" results/ubuntu20/dev_urandom/
+cp -a "$STS_DIR/experiments/AlgorithmTesting" results/ubuntu20/55-streams/dev_urandom/
 ```
 
 On Ubuntu 26.04, use the same procedure with `ubuntu26` destinations:
 
 ```sh
-mkdir -p results/ubuntu26/c_random results/ubuntu26/dev_random results/ubuntu26/dev_urandom
+mkdir -p results/ubuntu26/55-streams/c_random results/ubuntu26/55-streams/dev_random results/ubuntu26/55-streams/dev_urandom
 # Immediately after each corresponding STS run, copy the output directory:
-cp -a "$STS_DIR/experiments/AlgorithmTesting" results/ubuntu26/c_random/
-cp -a "$STS_DIR/experiments/AlgorithmTesting" results/ubuntu26/dev_random/
-cp -a "$STS_DIR/experiments/AlgorithmTesting" results/ubuntu26/dev_urandom/
+cp -a "$STS_DIR/experiments/AlgorithmTesting" results/ubuntu26/55-streams/c_random/
+cp -a "$STS_DIR/experiments/AlgorithmTesting" results/ubuntu26/55-streams/dev_random/
+cp -a "$STS_DIR/experiments/AlgorithmTesting" results/ubuntu26/55-streams/dev_urandom/
 ```
 
 The last block shows the destinations; execute each copy immediately after its corresponding run, before starting the next run. Check the copied files exist. Results are ignored by Git and should be retained locally for the experiment.
@@ -261,22 +264,20 @@ Complete all checks independently on each VM.
 
 Ubuntu 20.04:
 
-- [ ] `data/c_random.bin` is 125000 bytes.
-- [ ] `data/dev_random.bin` is 125000 bytes.
-- [ ] `data/dev_urandom.bin` is 125000 bytes.
-- [ ] C `random()` NIST output saved under `results/ubuntu20/c_random/`.
-- [ ] `/dev/random` NIST output saved under `results/ubuntu20/dev_random/`.
-- [ ] `/dev/urandom` NIST output saved under `results/ubuntu20/dev_urandom/`.
+- [ ] Each of the three `data/*.bin` files is 6875000 bytes.
+- [ ] STS ran all tests with 55 bitstreams of 1,000,000 bits each.
+- [ ] C `random()` NIST output saved under `results/ubuntu20/55-streams/c_random/`.
+- [ ] `/dev/random` NIST output saved under `results/ubuntu20/55-streams/dev_random/`.
+- [ ] `/dev/urandom` NIST output saved under `results/ubuntu20/55-streams/dev_urandom/`.
 - [ ] Saved `uname -r`, `/etc/os-release`, and `/dev/random` generation time if practical.
 
 Ubuntu 26.04:
 
-- [ ] `data/c_random.bin` is 125000 bytes.
-- [ ] `data/dev_random.bin` is 125000 bytes.
-- [ ] `data/dev_urandom.bin` is 125000 bytes.
-- [ ] C `random()` NIST output saved under `results/ubuntu26/c_random/`.
-- [ ] `/dev/random` NIST output saved under `results/ubuntu26/dev_random/`.
-- [ ] `/dev/urandom` NIST output saved under `results/ubuntu26/dev_urandom/`.
+- [ ] Each of the three `data/*.bin` files is 6875000 bytes.
+- [ ] STS ran all tests with 55 bitstreams of 1,000,000 bits each.
+- [ ] C `random()` NIST output saved under `results/ubuntu26/55-streams/c_random/`.
+- [ ] `/dev/random` NIST output saved under `results/ubuntu26/55-streams/dev_random/`.
+- [ ] `/dev/urandom` NIST output saved under `results/ubuntu26/55-streams/dev_urandom/`.
 - [ ] Saved `uname -r`, `/etc/os-release`, and `/dev/random` generation time if practical.
 
 The generated samples, downloaded STS archive and source, binaries, and NIST outputs are local experiment artifacts and are excluded from Git. This repository supplies the procedure only; it contains no claimed PASS/FAIL results or report.
