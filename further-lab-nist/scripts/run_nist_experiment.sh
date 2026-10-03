@@ -5,10 +5,11 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 LAB_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 
 usage() {
-    echo "Usage: $0 {ubuntu20|ubuntu26} [--samples-ready] [--non-interactive]" >&2
+    echo "Usage: $0 {ubuntu20|ubuntu26} [--samples-ready] [--non-interactive] [--resume]" >&2
     echo "  Default: generate all three samples before running NIST STS." >&2
     echo "  --samples-ready: use existing samples after verifying their sizes." >&2
     echo "  --non-interactive: feed the expected NIST STS 2.1.2 menu choices automatically." >&2
+    echo "  --resume: skip sources whose AlgorithmTesting output is already saved." >&2
 }
 
 if (($# < 1)); then
@@ -28,11 +29,13 @@ esac
 
 SAMPLES_READY=0
 NON_INTERACTIVE=0
+RESUME=0
 shift
 for option in "$@"; do
     case "$option" in
         --samples-ready) SAMPLES_READY=1 ;;
         --non-interactive) NON_INTERACTIVE=1 ;;
+        --resume) RESUME=1 ;;
         *)
             echo "ERROR: unknown option: $option" >&2
             usage
@@ -75,12 +78,6 @@ for source in "${SOURCES[@]}"; do
         exit 1
     fi
 
-    destination="$RESULTS_DIR/$source"
-    if [[ -e "$destination/AlgorithmTesting" ]]; then
-        echo "ERROR: saved output already exists at $destination/AlgorithmTesting" >&2
-        echo "Move or archive that previous result before running this source again; existing results are preserved." >&2
-        exit 1
-    fi
 done
 
 mkdir -p "$RESULTS_DIR"
@@ -108,6 +105,19 @@ for source in "${SOURCES[@]}"; do
     sample="$LAB_DIR/data/$source.bin"
     destination="$RESULTS_DIR/$source"
 
+    if [[ -e "$destination/AlgorithmTesting" ]]; then
+        if ((RESUME == 1)); then
+            echo "Skipping $source; saved output already exists at $destination/AlgorithmTesting"
+            continue
+        fi
+        echo "ERROR: saved output already exists at $destination/AlgorithmTesting" >&2
+        echo "Use --resume to keep that result and continue with the remaining sources." >&2
+        exit 1
+    fi
+
+    mkdir -p "$destination"
+    run_log="$destination/assess.log"
+
     echo
     echo "============================================================"
     echo "Source: $source"
@@ -115,10 +125,24 @@ for source in "${SOURCES[@]}"; do
     echo "Output will be saved to: $destination/AlgorithmTesting"
     run_status=0
     if ((NON_INTERACTIVE == 1)); then
-        printf '0\n%s\n1\n0\n1\n1\n' "$sample" | (cd "$STS_DIR" && "$ASSESS" 1000000) || run_status=$?
+        set +e
+        printf '0\n%s\n1\n0\n1\n1\n' "$sample" | (cd "$STS_DIR" && "$ASSESS" 1000000) 2>&1 | tee "$run_log"
+        pipeline_status=("${PIPESTATUS[@]}")
+        set -e
+        run_status="${pipeline_status[1]}"
+        tee_status="${pipeline_status[2]}"
     else
         read -r -p "Press Enter when ready to start this interactive STS run (Ctrl-C to stop): " _
-        (cd "$STS_DIR" && "$ASSESS" 1000000) || run_status=$?
+        set +e
+        (cd "$STS_DIR" && "$ASSESS" 1000000) 2>&1 | tee "$run_log"
+        pipeline_status=("${PIPESTATUS[@]}")
+        set -e
+        run_status="${pipeline_status[0]}"
+        tee_status="${pipeline_status[1]}"
+    fi
+
+    if ((tee_status != 0)); then
+        echo "WARNING: tee could not fully write the console log $run_log" >&2
     fi
 
     if [[ ! -d "$STS_DIR/experiments/AlgorithmTesting" ]]; then
@@ -130,9 +154,11 @@ for source in "${SOURCES[@]}"; do
     cp -a "$STS_DIR/experiments/AlgorithmTesting" "$destination/"
     echo "Saved STS output to $destination/AlgorithmTesting"
 
-    if ((run_status != 0)); then
-        echo "ERROR: STS exited with status $run_status after its output was copied. Stopping before the next source." >&2
+    if ((run_status != 0)) && ! grep -Fq "Statistical Testing Complete" "$run_log"; then
+        echo "ERROR: STS exited with status $run_status without its completion message. Stopping before the next source." >&2
         exit "$run_status"
+    elif ((run_status != 0)); then
+        echo "STS printed its completion message and saved its output (exit status $run_status). Continuing."
     fi
 done
 

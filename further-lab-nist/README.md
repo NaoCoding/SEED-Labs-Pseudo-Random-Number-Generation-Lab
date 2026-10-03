@@ -214,6 +214,14 @@ If you need no keyboard input during the STS runs, the driver also has a version
 
 Combine it with `--samples-ready` to skip sample generation. This mode feeds the expected NIST STS 2.1.2 responses for input-file selection, all tests, continuing with displayed default parameters, one bitstream, and binary format. Use it only with the official 2.1.2 build installed by the setup script; a different STS build or changed prompt sequence can consume those responses differently. The default interactive mode remains available. `/dev/random` generation may still wait for data, as required by the experiment, and is not bypassed.
 
+If a previous driver run saved one or more sources before stopping, add `--resume` to skip sources whose `AlgorithmTesting/` output is already present and continue with the remaining ones:
+
+```sh
+./scripts/run_nist_experiment.sh ubuntu20 --samples-ready --non-interactive --resume
+```
+
+Each invocation's console output is saved in the corresponding source folder as `assess.log`. STS 2.1.2 may return a nonzero process status after printing its normal completion message; the driver checks that message and saves the output before continuing. If it stops without a completion message, inspect the log and output before deciding whether to rerun that source.
+
 ## Step 8 - Preserve results immediately
 
 STS commonly writes its output under `experiments/AlgorithmTesting/`. Later runs may replace that output, so copy the complete directory immediately after each run. The `results/` paths below are relative to `further-lab-nist/`; return to that directory before using the copy commands, create the destinations on each VM as needed, and change `STS_DIR` to the actual installation path.
