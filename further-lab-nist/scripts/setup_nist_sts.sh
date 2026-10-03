@@ -79,9 +79,9 @@ fi
 mkdir -p "$EXTRACT_DIR"
 unzip -oq "$ARCHIVE" -d "$EXTRACT_DIR"
 
-MAKEFILE="$(find "$EXTRACT_DIR" -type f -name Makefile -print -quit)"
+MAKEFILE="$(find "$EXTRACT_DIR" -type f \( -iname makefile -o -name GNUmakefile \) -print -quit)"
 if [[ -z "$MAKEFILE" ]]; then
-    echo "ERROR: no Makefile found after extracting the NIST archive into $EXTRACT_DIR" >&2
+    echo "ERROR: no makefile found after extracting the NIST archive into $EXTRACT_DIR" >&2
     exit 1
 fi
 

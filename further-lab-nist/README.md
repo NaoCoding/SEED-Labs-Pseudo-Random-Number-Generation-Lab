@@ -75,7 +75,9 @@ If the automated download URL has changed or the script cannot download the arch
 1. Open the [official NIST SP 800-22 documentation and software page](https://csrc.nist.gov/projects/random-bit-generation/documentation-and-software).
 2. Download `sts-2_1_2.zip` from that page.
 3. Place it at `further-lab-nist/tools/sts-2_1_2.zip` (create `tools/` if needed).
-4. From `further-lab-nist/`, rerun `./scripts/setup_nist_sts.sh`. It will extract and build the local archive. Alternatively, unzip the archive under `tools/sts/` and run `make` in the directory containing its Makefile.
+4. From `further-lab-nist/`, rerun `./scripts/setup_nist_sts.sh`. It will extract and build the local archive. Alternatively, unzip the archive under `tools/sts/` and run `make` in the directory containing its `makefile` (the NIST archive uses a lowercase filename).
+
+The NIST archive names its build file `makefile` in lowercase. The setup script searches case-insensitively for it, including when the archive has an extra top-level directory, then runs `make` in that directory. NIST's SP 800-22 documentation describes the `makefile` as the build input that produces `assess` ([official publication](https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-22r1a.pdf)).
 
 The script only downloads from the official NIST host; it does not use third-party mirrors. Downloaded files, source, and binaries stay under ignored `tools/`.
 
