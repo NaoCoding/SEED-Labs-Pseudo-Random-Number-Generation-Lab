@@ -184,6 +184,28 @@ STS 2.1.2 is an older interactive program. Its exact prompt wording and menu num
 
 Run one invocation per file. For example, provide the full path to `data/c_random.bin`, finish the run, preserve its output as described in Step 8, and repeat with `data/dev_random.bin` and `data/dev_urandom.bin`. Keep the same menu selections and defaults for all three files and on both Ubuntu versions.
 
+### One-command experiment driver
+
+The `scripts/run_nist_experiment.sh` helper can generate (or verify existing) samples, launch STS once per source, save each `AlgorithmTesting/` output immediately, and save VM information. From `further-lab-nist/`, run the matching VM label:
+
+```sh
+./scripts/run_nist_experiment.sh ubuntu20
+```
+
+or on Ubuntu 26.04:
+
+```sh
+./scripts/run_nist_experiment.sh ubuntu26
+```
+
+By default it generates the samples first, including the direct `/dev/random` read and its warning. If all three samples are already generated and verified, pass `--samples-ready` to skip regeneration:
+
+```sh
+./scripts/run_nist_experiment.sh ubuntu20 --samples-ready
+```
+
+The driver pauses before each test, prints the exact sample path to enter in STS, and waits for you to make the interactive menu selections described above. It does not automate the NIST menus. After each invocation returns, it copies that run's output to `results/<vm-label>/<source>/AlgorithmTesting/`. It stops rather than overwriting an existing saved run. If `/dev/random` is interrupted during initial generation, generate/verify all three samples manually, then rerun with `--samples-ready`.
+
 ## Step 8 - Preserve results immediately
 
 STS commonly writes its output under `experiments/AlgorithmTesting/`. Later runs may replace that output, so copy the complete directory immediately after each run. The `results/` paths below are relative to `further-lab-nist/`; return to that directory before using the copy commands, create the destinations on each VM as needed, and change `STS_DIR` to the actual installation path.
