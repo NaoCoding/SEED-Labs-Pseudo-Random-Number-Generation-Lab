@@ -1,3 +1,12 @@
 build/
 output.bin
 *.o
+
+# Generated data and local NIST STS installation for the Further Lab.
+further-lab-nist/data/*.bin
+!further-lab-nist/data/.gitkeep
+further-lab-nist/results/*
+!further-lab-nist/results/.gitkeep
+further-lab-nist/tools/
+further-lab-nist/generate_c_random_nist
+further-lab-nist/**/*.o
