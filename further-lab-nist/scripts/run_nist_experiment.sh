@@ -5,12 +5,13 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 LAB_DIR="$(cd -- "$SCRIPT_DIR/.." && pwd)"
 
 usage() {
-    echo "Usage: $0 {ubuntu20|ubuntu26} [--samples-ready]" >&2
+    echo "Usage: $0 {ubuntu20|ubuntu26} [--samples-ready] [--non-interactive]" >&2
     echo "  Default: generate all three samples before running NIST STS." >&2
     echo "  --samples-ready: use existing samples after verifying their sizes." >&2
+    echo "  --non-interactive: feed the expected NIST STS 2.1.2 menu choices automatically." >&2
 }
 
-if (($# < 1 || $# > 2)); then
+if (($# < 1)); then
     usage
     exit 2
 fi
@@ -26,13 +27,19 @@ case "$VM_TAG" in
 esac
 
 SAMPLES_READY=0
-if (($# == 2)); then
-    if [[ "$2" != "--samples-ready" ]]; then
-        usage
-        exit 2
-    fi
-    SAMPLES_READY=1
-fi
+NON_INTERACTIVE=0
+shift
+for option in "$@"; do
+    case "$option" in
+        --samples-ready) SAMPLES_READY=1 ;;
+        --non-interactive) NON_INTERACTIVE=1 ;;
+        *)
+            echo "ERROR: unknown option: $option" >&2
+            usage
+            exit 2
+            ;;
+    esac
+done
 
 SAMPLE_BYTES=125000
 SOURCES=(c_random dev_random dev_urandom)
@@ -89,8 +96,13 @@ mkdir -p "$RESULTS_DIR"
 echo
 echo "NIST STS executable: $ASSESS"
 echo "STS working directory: $STS_DIR"
-echo "For each run, choose user-provided file input, raw binary, all available tests, default parameters, and one bitstream."
-echo "The script will display the required input path before each interactive run. Confirm the choices shown by your installed STS version."
+if ((NON_INTERACTIVE == 1)); then
+    echo "Non-interactive mode: feeding the NIST STS 2.1.2 menu sequence for input file, all tests, default parameters, one bitstream, and binary input."
+    echo "Use this only with the official NIST STS 2.1.2 menu flow installed by setup_nist_sts.sh."
+else
+    echo "For each run, choose user-provided file input, raw binary, all available tests, default parameters, and one bitstream."
+    echo "The script will display the required input path before each interactive run. Confirm the choices shown by your installed STS version."
+fi
 
 for source in "${SOURCES[@]}"; do
     sample="$LAB_DIR/data/$source.bin"
@@ -101,10 +113,13 @@ for source in "${SOURCES[@]}"; do
     echo "Source: $source"
     echo "Input file to select in STS: $sample"
     echo "Output will be saved to: $destination/AlgorithmTesting"
-    read -r -p "Press Enter when ready to start this interactive STS run (Ctrl-C to stop): " _
-
     run_status=0
-    (cd "$STS_DIR" && "$ASSESS" 1000000) || run_status=$?
+    if ((NON_INTERACTIVE == 1)); then
+        printf '0\n%s\n1\n0\n1\n1\n' "$sample" | (cd "$STS_DIR" && "$ASSESS" 1000000) || run_status=$?
+    else
+        read -r -p "Press Enter when ready to start this interactive STS run (Ctrl-C to stop): " _
+        (cd "$STS_DIR" && "$ASSESS" 1000000) || run_status=$?
+    fi
 
     if [[ ! -d "$STS_DIR/experiments/AlgorithmTesting" ]]; then
         echo "ERROR: STS did not create $STS_DIR/experiments/AlgorithmTesting; cannot preserve this run." >&2

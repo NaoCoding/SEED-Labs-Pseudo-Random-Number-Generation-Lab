@@ -206,6 +206,14 @@ By default it generates the samples first, including the direct `/dev/random` re
 
 The driver pauses before each test, prints the exact sample path to enter in STS, and waits for you to make the interactive menu selections described above. It does not automate the NIST menus. After each invocation returns, it copies that run's output to `results/<vm-label>/<source>/AlgorithmTesting/`. It stops rather than overwriting an existing saved run. If `/dev/random` is interrupted during initial generation, generate/verify all three samples manually, then rerun with `--samples-ready`.
 
+If you need no keyboard input during the STS runs, the driver also has a version-specific mode:
+
+```sh
+./scripts/run_nist_experiment.sh ubuntu20 --non-interactive
+```
+
+Combine it with `--samples-ready` to skip sample generation. This mode feeds the expected NIST STS 2.1.2 responses for input-file selection, all tests, continuing with displayed default parameters, one bitstream, and binary format. Use it only with the official 2.1.2 build installed by the setup script; a different STS build or changed prompt sequence can consume those responses differently. The default interactive mode remains available. `/dev/random` generation may still wait for data, as required by the experiment, and is not bypassed.
+
 ## Step 8 - Preserve results immediately
 
 STS commonly writes its output under `experiments/AlgorithmTesting/`. Later runs may replace that output, so copy the complete directory immediately after each run. The `results/` paths below are relative to `further-lab-nist/`; return to that directory before using the copy commands, create the destinations on each VM as needed, and change `STS_DIR` to the actual installation path.
